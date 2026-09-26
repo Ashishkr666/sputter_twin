@@ -11,6 +11,17 @@ from sputtertwin.pinn.plasma_pinn import (
     train_plasma_pinn,
     evaluate_plasma_pinn,
 )
+from sputtertwin.pinn.yield_pinn import (
+    YieldPINN,
+    YieldPINNConfig,
+    generate_yield_dataset,
+    compute_physics_residuals,
+    compute_yield_physics_residuals,
+    train_yield_pinn,
+    evaluate_yield_pinn,
+    load_yield_pinn,
+    BENCHMARK_POINTS,
+)
 
 __all__ = [
     "PlasmaPINN",
@@ -18,4 +29,13 @@ __all__ = [
     "generate_plasma_dataset",
     "train_plasma_pinn",
     "evaluate_plasma_pinn",
+    "YieldPINN",
+    "YieldPINNConfig",
+    "generate_yield_dataset",
+    "compute_physics_residuals",
+    "compute_yield_physics_residuals",
+    "train_yield_pinn",
+    "evaluate_yield_pinn",
+    "load_yield_pinn",
+    "BENCHMARK_POINTS",
 ]

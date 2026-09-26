@@ -18,6 +18,15 @@ from sputtertwin.physics.sputter_yield import (
     TargetMaterial,
     calculate_sputter_yield,
     calculate_sputter_yield_array,
+    calculate_kinematic_factor,
+    calculate_thomson_energy_spectrum,
+    sample_ejected_energy_and_angle,
+    calculate_sputter_yield_sota,
+    EjectedParticles,
+)
+from sputtertwin.physics.target_erosion import (
+    TargetErosionModel,
+    TargetErosionResult,
 )
 from sputtertwin.physics.transport import (
     TransportSummary,
@@ -33,6 +42,11 @@ __all__ = [
     "MATERIALS",
     "calculate_sputter_yield",
     "calculate_sputter_yield_array",
+    "calculate_kinematic_factor",
+    "calculate_thomson_energy_spectrum",
+    "sample_ejected_energy_and_angle",
+    "calculate_sputter_yield_sota",
+    "EjectedParticles",
     "DischargeState",
     "calculate_discharge_state",
     "format_discharge_state",
@@ -44,4 +58,7 @@ __all__ = [
     "TransportSummary",
     "DepositionResult",
     "simulate_deposition",
+    "TargetErosionModel",
+    "TargetErosionResult",
 ]
+
