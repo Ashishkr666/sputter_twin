@@ -36,6 +36,7 @@ from sputtertwin.physics.sputter_yield import (
     MATERIALS,
     TargetMaterial,
     calculate_sputter_yield,
+    calculate_sputter_yield_sota,
 )
 
 # Fundamental physical constants
@@ -86,6 +87,7 @@ class TargetErosionResult:
     discharge_voltage_v: float = 400.0
     initial_thickness_mm: float = 6.0
     target_radius_mm: float = 25.0
+    roughness_factor: float = 0.0
 
     # User-friendly property aliases
     @property
@@ -156,6 +158,7 @@ class TargetErosionModel:
         initial_thickness_mm: Initial target plate thickness in mm.
         initial_thickness_m: Initial target plate thickness in meters.
         n_target: Target atomic density in atoms / m^3 (rho * N_A / M).
+        roughness_factor: Surface micro-roughness damping parameter (Ruzic model).
     """
 
     def __init__(
@@ -170,6 +173,7 @@ class TargetErosionModel:
         initial_thickness: Optional[float] = None,
         initial_thickness_mm: Optional[float] = None,
         initial_thickness_m: Optional[float] = None,
+        roughness_factor: float = 0.0,
     ) -> None:
         """Initialize TargetErosionModel.
 
@@ -257,6 +261,7 @@ class TargetErosionModel:
         m_g_mol = self._material_obj.atomic_mass
         self.n_target: float = (rho_g_cm3 * 1e6 * _AVOGADRO) / m_g_mol
         self.target_density_m3: float = self.n_target
+        self.roughness_factor: float = max(0.0, float(roughness_factor))
 
         # State tracking for last simulation
         self.last_result: Optional[TargetErosionResult] = None
@@ -298,6 +303,7 @@ class TargetErosionModel:
         discharge_voltage_v: float,
         theta_local_rad: Union[float, np.ndarray] = 0.0,
         unit: str = "m/s",
+        roughness_factor: Optional[float] = None,
     ) -> Union[float, np.ndarray]:
         """Calculate local instantaneous target erosion rate.
 
@@ -309,6 +315,7 @@ class TargetErosionModel:
             discharge_voltage_v: Cathode discharge voltage in Volts (E_eff = |V_d| in eV).
             theta_local_rad: Local surface groove inclination angle in radians (0 = normal).
             unit: Output rate unit: 'm/s' or 'mm/h'.
+            roughness_factor: Optional surface micro-roughness damping parameter (Ruzic).
 
         Returns:
             Erosion rate in specified units.
@@ -317,6 +324,7 @@ class TargetErosionModel:
         if e_eff <= self._material_obj.threshold_energy:
             return 0.0 if np.isscalar(current_density_a_m2) else np.zeros_like(current_density_a_m2, dtype=float)
 
+        rf = self.roughness_factor if roughness_factor is None else max(0.0, float(roughness_factor))
         j_arr = np.asarray(current_density_a_m2, dtype=float)
         theta_arr = np.asarray(theta_local_rad, dtype=float)
 
@@ -326,13 +334,13 @@ class TargetErosionModel:
         is_flux = np.any(j_arr > 1e12)
         gamma_i = j_arr if is_flux else (j_arr / _E_CHARGE)
 
-        # Calculate Yamamura-Tawara sputter yield Y(E_eff, theta)
+        # Calculate SOTA sputter yield Y(E_eff, theta)
         if theta_arr.ndim == 0:
-            y_val = calculate_sputter_yield(e_eff, self._material_obj, float(theta_arr))
+            y_val = calculate_sputter_yield_sota(e_eff, self._material_obj, float(theta_arr), roughness_factor=rf)
             rate_m_s = gamma_i * y_val / self.n_target
         else:
             y_vals = np.array([
-                calculate_sputter_yield(e_eff, self._material_obj, float(th))
+                calculate_sputter_yield_sota(e_eff, self._material_obj, float(th), roughness_factor=rf)
                 for th in theta_arr
             ])
             rate_m_s = gamma_i * y_vals / self.n_target
@@ -465,6 +473,7 @@ class TargetErosionModel:
         *,
         r_grid: Optional[np.ndarray] = None,
         clamp_at_thickness: bool = True,
+        roughness_factor: Optional[float] = None,
     ) -> TargetErosionResult:
         """Simulate dynamic 2D racetrack target groove erosion over time.
 
@@ -482,6 +491,7 @@ class TargetErosionModel:
             r_grid: Optional radial coordinate array (m or mm). If None, inferred
                 from Plasma2DResult or constructed linearly from target_radius.
             clamp_at_thickness: If True, restricts groove depth to initial target thickness.
+            roughness_factor: Surface micro-roughness damping parameter (Ruzic model).
 
         Returns:
             TargetErosionResult with depth profiles, histories, and key performance metrics.
@@ -504,6 +514,7 @@ class TargetErosionModel:
         if discharge_voltage_v is None:
             discharge_voltage_v = 400.0  # standard DC magnetron operating voltage
 
+        rf = self.roughness_factor if roughness_factor is None else max(0.0, float(roughness_factor))
         v_d = abs(float(discharge_voltage_v))
         total_h = max(0.0, float(total_hours))
         dt_h = max(1e-4, float(time_step_hours))
@@ -538,6 +549,7 @@ class TargetErosionModel:
                 discharge_voltage_v=v_d,
                 initial_thickness_mm=self.initial_target_thickness_mm,
                 target_radius_mm=self.target_radius_mm,
+                roughness_factor=rf,
             )
             self.last_result = res
             return res
@@ -570,9 +582,9 @@ class TargetErosionModel:
             else:
                 theta_local = np.zeros(n_r, dtype=float)
 
-            # Sputter yield with Yamamura angular enhancement
+            # Sputter yield with SOTA Yamamura-Ruzic angular enhancement and roughness damping
             y_arr = np.array([
-                calculate_sputter_yield(v_d, self._material_obj, float(th))
+                calculate_sputter_yield_sota(v_d, self._material_obj, float(th), roughness_factor=rf)
                 for th in theta_local
             ])
 
@@ -643,6 +655,7 @@ class TargetErosionModel:
             discharge_voltage_v=v_d,
             initial_thickness_mm=self.initial_target_thickness_mm,
             target_radius_mm=self.target_radius_mm,
+            roughness_factor=rf,
         )
         self.last_result = res
         return res

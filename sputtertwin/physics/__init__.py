@@ -36,6 +36,20 @@ from sputtertwin.physics.transport import (
     calculate_transmission_probability,
     calculate_transport_summary,
 )
+from sputtertwin.physics2d import (
+    compute_magnetron_magnetic_field,
+    simulate_plasma_2d,
+    compute_gas_rarefaction_2d,
+    Plasma2DResult,
+    MagneticField2D,
+    GasRarefaction2D,
+)
+
+from sputtertwin.physics.integrated import (
+    IntegratedDischargeErosionResult,
+    IntegratedPINNSurrogate,
+    simulate_integrated_discharge_and_erosion,
+)
 
 __all__ = [
     "TargetMaterial",
@@ -60,5 +74,14 @@ __all__ = [
     "simulate_deposition",
     "TargetErosionModel",
     "TargetErosionResult",
+    "compute_magnetron_magnetic_field",
+    "simulate_plasma_2d",
+    "compute_gas_rarefaction_2d",
+    "Plasma2DResult",
+    "MagneticField2D",
+    "GasRarefaction2D",
+    "IntegratedDischargeErosionResult",
+    "IntegratedPINNSurrogate",
+    "simulate_integrated_discharge_and_erosion",
 ]
 
