@@ -172,8 +172,16 @@ def simulate_plasma_2d(
     i_ion_raw = total_integrated_flux * _E_CHARGE
 
     # Power balance: W = V_d * I_d = V_d * I_ion * (1 + gamma_se)
-    # Using Thornton-Westwood characteristic to calibrate V_d and absolute current
-    kp_term = 0.75 / ((5.0 ** 0.4) * (400.0 ** 6.0)) * (p_eff ** 0.4)
+    # Sputter wind thermal rarefaction feedback at cathode front:
+    delta_t_gas = 75.0 * (power_w / 100.0) * (5.0 / p_eff) ** 0.25
+    t_gas_local = 300.0 + 0.35 * delta_t_gas
+    p_eff_target = p_eff * (300.0 / t_gas_local) ** 0.30
+
+    # 2D magnetic confinement scaling from parallel B-field:
+    b_ref = 0.045
+    b_factor = (mag_field.b_parallel_peak_tesla / b_ref) ** 0.20
+
+    kp_term = (0.76 * b_factor) / ((5.0 ** 0.4) * (395.0 ** 6.0)) * (p_eff_target ** 0.4)
     v_discharge = float((power_w / kp_term) ** (1.0 / 7.0))
     i_discharge = float(power_w / v_discharge)
     i_ion_target = i_discharge / (1.0 + gamma_se)

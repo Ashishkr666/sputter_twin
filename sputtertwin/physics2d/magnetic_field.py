@@ -173,17 +173,17 @@ def compute_magnetron_magnetic_field(
     # Modeled as two concentric current sheets:
     # Inner radius has negative current; outer radius has positive current
     for zl in z_loops:
-        # Inner surface of ring magnet (- current)
+        # Inner surface of ring magnet (+ current since outward normal points toward center)
         br_in, bz_in, ath_in = _single_loop_b_field(
-            R, Z, g.outer_ring_inner_radius_m, zl, -i_central
+            R, Z, g.outer_ring_inner_radius_m, zl, i_central
         )
         b_r_total += br_in
         b_z_total += bz_in
         a_theta_total += ath_in
 
-        # Outer surface of ring magnet (+ current)
+        # Outer surface of ring magnet (- current)
         br_out, bz_out, ath_out = _single_loop_b_field(
-            R, Z, g.outer_ring_outer_radius_m, zl, i_central
+            R, Z, g.outer_ring_outer_radius_m, zl, -i_central
         )
         b_r_total += br_out
         b_z_total += bz_out
