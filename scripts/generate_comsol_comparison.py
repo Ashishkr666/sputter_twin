@@ -223,8 +223,11 @@ def run_benchmark_suite() -> None:
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "comsol_vs_sputtertwin_dashboard.png")
 
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-    plt.style.use("seaborn-v0_8-darkgrid" if "seaborn-v0_8-darkgrid" in plt.style.available else "default")
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10.5))
+    fig.patch.set_facecolor("#ffffff")
+    for ax in axes.flat:
+        ax.set_facecolor("#ffffff")
+        ax.tick_params(colors="#0f172a", direction="in", length=4, width=1.1)
 
     # Panel 1: I-V Curves at 5 mTorr (COMSOL vs SputterTwin vs PINN)
     powers_dense = np.linspace(80.0, 500.0, 50)
@@ -338,8 +341,8 @@ def run_benchmark_suite() -> None:
     axes[1, 2].grid(True, alpha=0.3)
 
     plt.suptitle("SputterTwin vs. COMSOL Multiphysics: Complete Physics & PINN Benchmark Dashboard", fontsize=15, fontweight="bold", y=0.98)
-    plt.tight_layout()
-    fig.savefig(out_path, dpi=200)
+    plt.tight_layout(rect=[0, 0.02, 1, 0.95])
+    fig.savefig(out_path, dpi=300, facecolor="white", edgecolor="none")
     plt.close(fig)
 
     print(f"  [OK] Dashboard figure saved to: {out_path}")
