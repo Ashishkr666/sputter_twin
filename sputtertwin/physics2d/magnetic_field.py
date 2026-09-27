@@ -211,10 +211,22 @@ def compute_magnetron_magnetic_field(
     idx_race = int(np.argmin(np.abs(r_vec - r_race)))
     b_parallel_peak = float(np.abs(b_r_total[0, idx_race]))
 
-    # Vertical trap thickness: where |B| drops to 1/e of surface value at racetrack
+    # Vertical trap thickness: interpolated height above the racetrack where
+    # |B| falls to 1/e of its surface value. Linear interpolation keeps the
+    # metric independent of the axial grid resolution (a pure index lookup
+    # quantizes it to dz and makes downstream closures grid-sensitive).
     b_vertical_race = b_mag[:, idx_race]
-    trap_indices = np.where(b_vertical_race >= b_vertical_race[0] * 0.368)[0]
-    trap_thickness = float(z_vec[trap_indices[-1]]) if len(trap_indices) > 0 else 0.015
+    b_surface = float(b_vertical_race[0])
+    trap_threshold = b_surface * math.exp(-1.0)
+    trap_thickness = float(z_vec[-1])
+    if b_surface > 0.0:
+        for iz in range(1, b_vertical_race.size):
+            if b_vertical_race[iz] <= trap_threshold:
+                b0, b1 = float(b_vertical_race[iz - 1]), float(b_vertical_race[iz])
+                z0, z1 = float(z_vec[iz - 1]), float(z_vec[iz])
+                frac = (b0 - trap_threshold) / (b0 - b1) if b0 != b1 else 0.0
+                trap_thickness = z0 + frac * (z1 - z0)
+                break
 
     return MagneticField2D(
         r_grid_m=r_vec,

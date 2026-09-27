@@ -44,6 +44,38 @@ Operating Parameters (W, P, flow)
 - **`transport.py`**: Gas kinetic theory, mean free path, Knudsen regime classification (ballistic / transition / continuum), Beer-Lambert unscattered transmission, and random-walk angular broadening.
 - **`deposition.py`**: 2D circular wafer film profile simulation, racetrack geometry non-uniformity modeling, target groove erosion collimation, and thermalization transport efficiency. Calibrated to semiconductor fab benchmark conditions.
 
+### 2D Multiphysics Field Solvers (`sputtertwin/physics2d/`)
+- **`magnetic_field.py`**: Exact elliptic-integral field of the magnet assembly ($B_r$, $B_z$, $\psi$), racetrack null point, Hall parameter, and (interpolated, grid-independent) trap thickness.
+- **`plasma2d.py`**: 2D axisymmetric $(r,z)$ discharge — magnetized electron transport ($\mu_\perp = \mu_{e0}/(1+\beta_e^2)$), trap-shaped $T_e(r,z)$ and $n_e(r,z)$, ionization source $R_{\text{ion}}(r,z)$, Child-Langmuir sheath potential $V(r,z)$, and the cathode racetrack current profile $J_i(r)$, all normalized to the shared magnetron power law $W = V_d I_d$.
+- **`rarefaction2d.py`**: 2D gas heating and rarefaction from the sputter wind.
+
+```python
+from sputtertwin.physics2d import (
+    compute_magnetron_magnetic_field,
+    simulate_plasma_2d,
+    compute_gas_rarefaction_2d,
+)
+
+# Compute the magnetic trap once and reuse it across operating points
+b2d = compute_magnetron_magnetic_field(grid_r_points=80, grid_z_points=60, z_max_m=0.060)
+
+plasma = simulate_plasma_2d(power_w=220.0, pressure_mtorr=5.0, mag_field=b2d)
+print(plasma.summary())
+
+# Optional: couple the 2D sputter-wind rarefaction field into the plasma solve
+rarefaction = compute_gas_rarefaction_2d(
+    power_w=220.0,
+    pressure_mtorr=5.0,
+    racetrack_radius_m=plasma.racetrack_radius_m,
+    grid_r=80,
+    grid_z=60,
+)
+coupled = simulate_plasma_2d(
+    power_w=220.0, pressure_mtorr=5.0, mag_field=b2d, rarefaction=rarefaction
+)
+```
+
+
 ### PINN Modules (`sputtertwin/pinn/`)
 - **`plasma_pinn.py`**: Deep surrogate neural network for the plasma discharge stage, trained under 4 physics conservation losses (Power Conservation, Magnetron I-V Scaling, Ion Current Continuity, Bohm Sheath Criterion).
 

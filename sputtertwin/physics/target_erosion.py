@@ -32,6 +32,8 @@ from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 
+from sputtertwin.numerics import trapezoid
+
 from sputtertwin.physics.sputter_yield import (
     MATERIALS,
     TargetMaterial,
@@ -427,7 +429,7 @@ class TargetErosionModel:
         else:
             r_m = np.linspace(0.0, self.target_radius_m, len(d_m))
 
-        v_sputtered = 2.0 * math.pi * float(np.trapz(d_m * r_m, r_m))
+        v_sputtered = 2.0 * math.pi * float(trapezoid(d_m * r_m, r_m))
         v_total = math.pi * (self.target_radius_m**2) * self.initial_target_thickness_m
         utilization_pct = (v_sputtered / v_total) * 100.0
         return float(np.clip(utilization_pct, 0.0, 100.0))
