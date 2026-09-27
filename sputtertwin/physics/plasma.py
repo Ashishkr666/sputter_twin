@@ -13,7 +13,10 @@ from typing import Optional  # Note: Optional IS used for the type hint of racet
 __all__ = [
     "DischargeState",
     "calculate_discharge_state",
+    "effective_pressure_mtorr",
     "format_discharge_state",
+    "magnetron_k_constant",
+    "magnetron_voltage_from_power",
 ]
 
 # Physical constants
@@ -26,7 +29,6 @@ _M_AR_KG: float = 39.948 * _AMU_KG  # Argon ion mass in kg
 # (e.g., Vd ~ 400 V, Id ~ 0.75 A at W = 300 W, P = 5 mTorr)
 _N_EXPONENT: float = 6.0
 _M_EXPONENT: float = 0.4
-_K_DISCHARGE: float = 0.75 / ((5.0**_M_EXPONENT) * (400.0**_N_EXPONENT))
 _GAMMA_SE: float = 0.10  # Secondary electron emission coefficient (~10%)
 
 # Option B: ar_flow effective-pressure contribution.
@@ -35,6 +37,7 @@ _GAMMA_SE: float = 0.10  # Secondary electron emission coefficient (~10%)
 # Calibrated so that the baseline flow (20 sccm) has zero offset.
 _K_FLOW_MTORR_PER_SCCM: float = 0.01   # mTorr / sccm
 _AR_FLOW_BASELINE_SCCM: float = 20.0   # reference / neutral flow
+_MIN_EFFECTIVE_PRESSURE_MTORR: float = 1e-3  # physical floor for P_eff (mTorr)
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,130 @@ class DischargeState:
     electron_temp_ev: float
     plasma_density_m3: float
     effective_pressure_mtorr: float
+
+
+def effective_pressure_mtorr(
+    pressure_mtorr: float,
+    ar_flow_sccm: float = _AR_FLOW_BASELINE_SCCM,
+) -> float:
+    """Return the effective discharge pressure P_eff (mTorr) seen by the plasma.
+
+    Option B coupling: each sccm of Ar flow above the baseline raises the
+    effective pressure by ``_K_FLOW_MTORR_PER_SCCM`` mTorr:
+
+        P_eff = pressure_mtorr + k_flow * (ar_flow_sccm - baseline_sccm)
+
+    Args:
+        pressure_mtorr: Argon set-point pressure in mTorr.
+        ar_flow_sccm: Argon gas mass flow rate in sccm (default: baseline).
+
+    Returns:
+        Effective pressure in mTorr, clamped to a small positive floor so the
+        discharge law never sees a non-physical pressure.
+    """
+    p_eff = float(pressure_mtorr) + _K_FLOW_MTORR_PER_SCCM * (
+        float(ar_flow_sccm) - _AR_FLOW_BASELINE_SCCM
+    )
+    return max(p_eff, _MIN_EFFECTIVE_PRESSURE_MTORR)
+
+
+
+def magnetron_k_constant(
+    ref_power_w: float,
+    ref_voltage_v: float,
+    ref_pressure_mtorr: float,
+    *,
+    m_exponent: float = _M_EXPONENT,
+    n_exponent: float = _N_EXPONENT,
+) -> float:
+    """Calibrate the magnetron constant ``k`` at a reference operating point.
+
+    From the empirical characteristic ``I_d = k * P_eff^m * V_d^n`` and the
+    applied power ``W = V_d * I_d``:
+
+        k = W_ref / (P_ref^m * V_ref^n)
+
+    Sharing this calibration helper keeps the 0D discharge model and the 2D
+    multiphysics solver (``sputtertwin.physics2d.plasma2d``) anchored to exactly
+    the same reference-point arithmetic.
+
+    Args:
+        ref_power_w: Reference cathode power (W, must be > 0).
+        ref_voltage_v: Reference discharge voltage (V, must be > 0).
+        ref_pressure_mtorr: Reference effective pressure (mTorr, must be > 0).
+        m_exponent: Pressure exponent in the magnetron characteristic.
+        n_exponent: Voltage exponent in the magnetron characteristic.
+
+    Returns:
+        The magnetron scaling constant ``k``.
+
+    Raises:
+        ValueError: If any reference value is non-positive.
+    """
+    for name, value in (
+        ("ref_power_w", ref_power_w),
+        ("ref_voltage_v", ref_voltage_v),
+        ("ref_pressure_mtorr", ref_pressure_mtorr),
+    ):
+        if not (math.isfinite(float(value)) and float(value) > 0.0):
+            raise ValueError(f"{name} must be finite and > 0, got {value}")
+    return float(
+        ref_power_w / ((ref_pressure_mtorr ** m_exponent) * (ref_voltage_v ** n_exponent))
+    )
+
+
+# Calibrated k for the 0D baseline (W = 300 W, V_d ~ 400 V, P_eff = 5 mTorr)
+_K_DISCHARGE: float = magnetron_k_constant(0.75, 400.0, 5.0)
+
+
+def magnetron_voltage_from_power(
+    power_w: float,
+    p_eff_mtorr: float,
+    *,
+    k_constant: float = _K_DISCHARGE,
+    m_exponent: float = _M_EXPONENT,
+    n_exponent: float = _N_EXPONENT,
+) -> float:
+    """Invert the magnetron power law for the cathode discharge voltage V_d.
+
+    The standard empirical magnetron characteristic is:
+
+        I_d = k * P_eff^m * V_d^n
+
+    and with the applied cathode power W = V_d * I_d this becomes:
+
+        W = k * P_eff^m * V_d^(n + 1)
+        =>  V_d = (W / (k * P_eff^m))^(1 / (n + 1))
+
+    This is the single source of truth for the I-V-P inversion, shared by the
+    0D discharge model (:func:`calculate_discharge_state`) and the 2D
+    multiphysics solver (``sputtertwin.physics2d.plasma2d``), which differ only
+    in their calibrated ``k_constant`` and effective pressure.
+
+    Args:
+        power_w: Cathode electrical power in Watts (must be > 0).
+        p_eff_mtorr: Effective discharge pressure in mTorr (must be > 0).
+        k_constant: Magnetron geometry/confinement scaling constant.
+        m_exponent: Pressure exponent in the magnetron characteristic.
+        n_exponent: Voltage exponent in the magnetron characteristic.
+
+    Returns:
+        Cathode discharge voltage V_d in Volts.
+
+    Raises:
+        ValueError: If power_w or p_eff_mtorr is non-positive or non-finite.
+    """
+    power_w = float(power_w)
+    p_eff_mtorr = float(p_eff_mtorr)
+    if not (math.isfinite(power_w) and power_w > 0.0):
+        raise ValueError(f"power_w must be finite and > 0, got {power_w}")
+    if not (math.isfinite(p_eff_mtorr) and p_eff_mtorr > 0.0):
+        raise ValueError(f"p_eff_mtorr must be finite and > 0, got {p_eff_mtorr}")
+    if not (n_exponent + 1.0) > 0.0:
+        raise ValueError(f"n_exponent must be > -1, got {n_exponent}")
+
+    kp_term = k_constant * (p_eff_mtorr ** m_exponent)
+    return float((power_w / kp_term) ** (1.0 / (n_exponent + 1.0)))
 
 
 def calculate_discharge_state(
@@ -162,14 +289,17 @@ def calculate_discharge_state(
 
     # --- Option B: ar_flow → effective pressure ---
     # At baseline (20 sccm) the offset is zero; higher flows raise P_eff slightly.
-    p_eff = pressure_mtorr + _K_FLOW_MTORR_PER_SCCM * (ar_flow_sccm - _AR_FLOW_BASELINE_SCCM)
-    # Clamp: effective pressure must remain positive (flow cannot reduce pressure below 0).
-    p_eff = max(p_eff, 1e-3)
+    p_eff = effective_pressure_mtorr(pressure_mtorr, ar_flow_sccm)
 
     # --- Discharge voltage and current ---
-    # W = k * P_eff^m * V_d^(n+1)  =>  V_d = (W / (k * P_eff^m))^(1/(n+1))
-    kp_term = k_constant * (p_eff ** m_exponent)
-    voltage_v = (power_w / kp_term) ** (1.0 / (n_exponent + 1.0))
+    # Shared inversion of W = k * P_eff^m * V_d^(n+1) (see magnetron_voltage_from_power)
+    voltage_v = magnetron_voltage_from_power(
+        power_w,
+        p_eff,
+        k_constant=k_constant,
+        m_exponent=m_exponent,
+        n_exponent=n_exponent,
+    )
     current_a = power_w / voltage_v
 
     # --- Sheath ion energy (eV) ~ e * V_d ---

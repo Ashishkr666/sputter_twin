@@ -31,6 +31,8 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 
+from sputtertwin.numerics import trapezoid
+
 from sputtertwin.physics.sputter_yield import (
     MATERIALS,
     EjectedParticles,
@@ -261,18 +263,18 @@ def simulate_integrated_discharge_and_erosion(
     # Sputtered flux per unit area [atoms / m^2 s] = (J_i / e) * Y_local
     flux_density = (j_i / _E_CHARGE) * y_local
     # Axisymmetric integral: 2*pi * int_0^R r * flux_density(r) dr [atoms / s]
-    total_flux_atoms_s = float(2.0 * math.pi * np.trapz(flux_density * r_m, r_m))
+    total_flux_atoms_s = float(2.0 * math.pi * trapezoid(flux_density * r_m, r_m))
 
     # Total mass loss over total_hours [grams]
     # Sputtered volume [m^3] = 2*pi * int_0^R r * d(r) dr
-    sputtered_vol_m3 = float(2.0 * math.pi * np.trapz(erosion_res.depth_profile_m * r_m, r_m))
+    sputtered_vol_m3 = float(2.0 * math.pi * trapezoid(erosion_res.depth_profile_m * r_m, r_m))
     rho_kg_m3 = mat_obj.density * 1e3
     total_mass_grams = float(sputtered_vol_m3 * rho_kg_m3 * 1e3)
 
     # Erosion rate metrics (in um/hr)
     peak_rate_um_hr = float(np.max(erosion_res.erosion_rate_mm_hr) * 1e3)
     mean_rate_um_hr = float(
-        (2.0 * math.pi * np.trapz(erosion_res.erosion_rate_mm_hr * 1e3 * r_m, r_m))
+        (2.0 * math.pi * trapezoid(erosion_res.erosion_rate_mm_hr * 1e3 * r_m, r_m))
         / (math.pi * (target_r_m**2))
     )
 
