@@ -21,8 +21,8 @@ solve.  Specifically:
 
 * Poisson's equation is *not* solved numerically.  The sheath potential is the
   analytic Child-Langmuir solution and the quasineutral bulk potential is a
-  prescribed (Te-scaled) profile; only the sheath width is obtained by
-  inverting the Child-Langmuir law for the local current density.
+  prescribed profile (default +15 V, i.e. ~3-5 Te); only the sheath width is
+  obtained by inverting the Child-Langmuir law for the local current density.
 * n_e(r, z) and T_e(r, z) are prescribed closure fields (Gaussian trap
   envelopes scaled by the magnetic solver's racetrack radius / trap thickness),
   not solutions of electron/ion continuity equations.  The one quantity that is
@@ -97,6 +97,11 @@ _K_IZ_ARRHENIUS: float = 2.0e-13       # Arrhenius pre-factor (legacy default)
 _E_ION_FIT_EV: float = 17.44           # Fit activation energy (eV)
 _K_IZ_FIT_PREFACTOR: float = 2.34e-14  # Fit pre-factor (m^3 s^-1)
 _K_IZ_FIT_EXPONENT: float = 0.59       # Fit Te power-law exponent
+# The "fit" closure is an empirical Te^0.59 * exp(-E/Te) form for Maxwellian-averaged
+# Ar electron-impact ionization (order 1e-16 m^3/s at Te = 3 eV, 1e-14 at 10 eV).
+# It is an alternative to the legacy Arrhenius form, not a certified dataset: because
+# the cathode current is renormalized onto the power law, only its spatial shape
+# (through Te and n_e) affects the solution.
 _IONIZATION_MODELS: Tuple[str, ...] = ("arrhenius", "fit")
 _CATHODE_FLUX_MODELS: Tuple[str, ...] = ("ionization_integral", "bohm")
 
